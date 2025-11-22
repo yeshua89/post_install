@@ -359,9 +359,6 @@ step_install_additional() {
     print_header "Installing Additional Tools"
 
     ADDITIONAL=(
-        # VPN
-        protonvpn-cli
-
         # File manager (GUI for backup)
         nemo
 
@@ -387,6 +384,10 @@ step_install_additional() {
     )
 
     sudo pacman -S --needed --noconfirm "${ADDITIONAL[@]}"
+
+    # Install AUR packages
+    print_warning "Installing additional AUR packages..."
+    paru -S --needed --noconfirm protonvpn-cli
 
     # Enable Bluetooth
     sudo systemctl enable --now bluetooth
