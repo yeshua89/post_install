@@ -7,7 +7,7 @@
 # Date: $(date +%Y-%m-%d)
 # ============================================================================
 
-set -e  # Exit on error
+set -e # Exit on error
 
 # Colors for output
 RED='\033[0;31m'
@@ -71,7 +71,7 @@ step_setup_chaotic_aur() {
 
     # Add Chaotic-AUR to pacman.conf
     if ! grep -q "\[chaotic-aur\]" /etc/pacman.conf; then
-        sudo tee -a /etc/pacman.conf > /dev/null <<EOF
+        sudo tee -a /etc/pacman.conf >/dev/null <<EOF
 
 [chaotic-aur]
 Include = /etc/pacman.d/chaotic-mirrorlist
@@ -160,7 +160,7 @@ step_install_modern_cli() {
         yazi # Terminal file manager with vi keybindings
 
         # Additional CLI tools
-        tree    # Directory tree
+        tree # Directory tree
     )
 
     sudo pacman -S --needed --noconfirm "${MODERN_CLI[@]}"
@@ -302,7 +302,7 @@ step_install_python() {
     print_header "Installing Python Tools"
 
     sudo pacman -S --needed --noconfirm python python-pip
-    paru -S --needed --noconfirm uv  # Modern Python package manager
+    paru -S --needed --noconfirm uv # Modern Python package manager
 
     print_success "Python tools installed"
 }
@@ -366,14 +366,13 @@ step_install_additional() {
         power-profiles-daemon
         dmidecode
         xclip
-        htop
         cpio
 
         # Scheduler
         scx-scheds
 
         # Python tools
-        python-adblock    # For qutebrowser
+        python-adblock # For qutebrowser
 
         # zRAM
         zram-generator
@@ -397,10 +396,10 @@ step_install_aur() {
     print_header "Installing AUR Packages"
 
     AUR_PACKAGES=(
-        claude-code      # Claude AI in terminal
-        bun-bin          # JavaScript runtime
-        localsend        # Local file sharing
-        yaak             # API client
+        claude-code # Claude AI in terminal
+        bun-bin     # JavaScript runtime
+        localsend   # Local file sharing
+        yaak        # API client
     )
 
     paru -S --needed --noconfirm "${AUR_PACKAGES[@]}"
@@ -469,56 +468,72 @@ step_setup_git() {
 step_restore_dotfiles() {
     print_header "Restoring Dotfiles"
 
-    # Check if dotfiles directory exists
-    if [ ! -d ~/.dotfiles ]; then
-        print_warning "~/.dotfiles not found"
-        read -p "Do you have a dotfiles repository URL? (leave empty to skip): " dotfiles_url
+    DOTFILES_REPO="https://github.com/Jesusado89/.dotfiles"
+    DOTFILES_DIR="$HOME/.dotfiles"
 
-        if [ -n "$dotfiles_url" ]; then
-            print_warning "Cloning dotfiles..."
-            git clone "$dotfiles_url" ~/.dotfiles
-        else
-            print_warning "Skipping dotfiles restoration"
-            return
-        fi
+    # Configurations to apply with stow
+    CONFIGS_TO_APPLY=(
+        zsh
+        nvim
+        waybar
+        swaync
+        hypr
+        fuzzel
+        starship
+        qutebrowser
+        kitty
+    )
+
+    # Clone dotfiles if not exists
+    if [ ! -d "$DOTFILES_DIR" ]; then
+        print_warning "Cloning dotfiles from $DOTFILES_REPO..."
+        git clone "$DOTFILES_REPO" "$DOTFILES_DIR" || {
+            print_error "Failed to clone dotfiles repository"
+            return 1
+        }
+        print_success "Dotfiles cloned successfully"
+    else
+        print_success "Dotfiles directory already exists"
+        # Pull latest changes
+        print_warning "Pulling latest changes..."
+        cd "$DOTFILES_DIR"
+        git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || print_warning "Could not pull latest changes"
     fi
 
-    # Check if dotfiles exist
-    if [ -d ~/.dotfiles ]; then
+    # Apply configurations with stow
+    if [ -d "$DOTFILES_DIR" ]; then
         print_warning "Applying dotfiles with stow..."
-        cd ~/.dotfiles
+        cd "$DOTFILES_DIR"
 
         # List available configurations
-        echo -e "${YELLOW}Available configurations:${NC}"
+        echo -e "${YELLOW}Available configurations in dotfiles:${NC}"
         ls -d */ 2>/dev/null | sed 's#/##g'
         echo ""
 
-        # Ask which configs to apply
-        read -p "Apply all configs? [Y/n]: " apply_all
-
-        if [[ "$apply_all" =~ ^[Nn]$ ]]; then
-            read -p "Enter config names to apply (space-separated): " configs
-            for config in $configs; do
-                if [ -d "$config" ]; then
-                    stow -v "$config"
+        echo -e "${YELLOW}Applying selected configurations:${NC}"
+        for config in "${CONFIGS_TO_APPLY[@]}"; do
+            if [ -d "$config" ]; then
+                echo -e "${BLUE}Applying $config...${NC}"
+                if stow -v "$config" 2>/dev/null; then
                     print_success "Applied $config"
+                else
+                    # Try restow to fix conflicts
+                    if stow -R "$config" 2>/dev/null; then
+                        print_success "Re-applied $config (resolved conflicts)"
+                    else
+                        print_warning "Could not apply $config (conflicts exist)"
+                    fi
                 fi
-            done
-        else
-            # Apply all configs except specific ones
-            for dir in */; do
-                dir=${dir%/}
-                # Skip certain directories
-                if [[ ! "$dir" =~ ^(bspwm|picom|polybar|rofi|sxhkd|niri|alacritty|fish|tmux)$ ]]; then
-                    stow -v "$dir" 2>/dev/null && print_success "Applied $dir" || print_warning "Skipped $dir (conflicts or errors)"
-                fi
-            done
-        fi
+            else
+                print_warning "$config directory not found in dotfiles"
+            fi
+        done
 
-        cd ~
-        print_success "Dotfiles applied with stow"
+        cd "$HOME"
+        print_success "Dotfiles configuration complete"
     else
-        print_warning "No dotfiles to restore"
+        print_error "Dotfiles directory not accessible"
+        return 1
     fi
 }
 
@@ -554,7 +569,7 @@ step_performance_optimization() {
 
     # zRAM configuration
     if [ ! -f /etc/systemd/zram-generator.conf ]; then
-        sudo tee /etc/systemd/zram-generator.conf > /dev/null <<EOF
+        sudo tee /etc/systemd/zram-generator.conf >/dev/null <<EOF
 [zram0]
 zram-size = ram / 2
 compression-algorithm = zstd
