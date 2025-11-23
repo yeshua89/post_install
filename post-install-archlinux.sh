@@ -64,13 +64,13 @@ step_setup_chaotic_aur() {
     fi
 
     print_warning "Installing Chaotic-AUR keyring and mirrorlist..."
-    
-    # Solución a posibles fallos de llaves: inicializar si es necesario
+
+    # Fix keys
     if ! pacman-key --list-keys 3056513887B78AEB &>/dev/null; then
         sudo pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
         sudo pacman-key --lsign-key 3056513887B78AEB
     fi
-    
+
     sudo pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
     sudo pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
 
@@ -91,7 +91,7 @@ EOF
 }
 
 # ============================================================================
-# STEP 3: Install paru (AUR helper) - FIXED
+# STEP 3: Install paru (AUR helper) - BINARY VERSION (FIXED)
 # ============================================================================
 step_install_paru() {
     print_header "Installing paru (AUR Helper)"
@@ -101,17 +101,11 @@ step_install_paru() {
         return
     fi
 
-    # Limpiamos cualquier intento fallido anterior para evitar el error "already exists"
-    if [ -d "/tmp/paru-bin" ]; then
-        rm -rf /tmp/paru-bin
-    fi
-    if [ -d "/tmp/paru" ]; then
-        rm -rf /tmp/paru
-    fi
+    # Limpieza preventiva para evitar error "destination path already exists"
+    rm -rf /tmp/paru /tmp/paru-bin
 
-    print_warning "Installing paru-bin (Version binaria para evitar errores de memoria)..."
+    print_warning "Installing paru-bin (Fast binary installation)..."
     cd /tmp
-    # Usamos paru-bin en lugar de paru para evitar compilar Rust (que causa el SIGKILL)
     git clone https://aur.archlinux.org/paru-bin.git
     cd paru-bin
     makepkg -si --noconfirm
@@ -127,20 +121,11 @@ step_install_essentials() {
     print_header "Installing Essential Packages"
 
     ESSENTIALS=(
-        # Base system
         base base-devel linux-zen linux-zen-headers linux-firmware
         intel-ucode efibootmgr btrfs-progs
-
-        # Network
         networkmanager openssh
-
-        # Shell & Terminal
         zsh starship kitty
-
-        # Editor
         neovim
-
-        # Essential tools
         git wget curl unzip 7zip stow
     )
 
@@ -155,26 +140,13 @@ step_install_modern_cli() {
     print_header "Installing Modern CLI Tools"
 
     MODERN_CLI=(
-        # Core replacements
         bat eza fd ripgrep fzf zoxide sd
-
-        # System monitoring
         btop bottom procs dust duf
-
-        # Performance
         hyperfine
-
-        # Development
         tokei tealdeer
-
-        # Git tools
         git-delta lazygit github-cli glab
-
-        # File managers
-        yazi 
-
-        # Additional CLI tools
-        tree 
+        yazi
+        tree
     )
 
     sudo pacman -S --needed --noconfirm "${MODERN_CLI[@]}"
@@ -188,33 +160,19 @@ step_install_hyprland() {
     print_header "Installing Hyprland & Wayland"
 
     HYPRLAND=(
-        # Hyprland core
         hyprland hyprpaper hyprlock hypridle hyprsunset
         hyprshot hyprpicker hyprpolkitagent
-
-        # Wayland essentials
         waybar swaync fuzzel wlogout
-
-        # Display manager
         ly
-
-        # Clipboard manager
         cliphist wl-clipboard
-
-        # Bluetooth applet
         blueman
-
-        # Media viewers
         mpv imv
-
-        # Utilities
         nwg-look brightnessctl
         gst-plugin-pipewire
     )
 
     sudo pacman -S --needed --noconfirm "${HYPRLAND[@]}"
 
-    # Install AUR packages for Hyprland
     print_warning "Installing Hyprland AUR packages..."
     paru -S --needed --noconfirm dipc
 
@@ -227,27 +185,17 @@ step_install_hyprland() {
 step_configure_hyprpm() {
     print_header "Configuring Hyprland Plugins"
 
-    # Check if hyprland is installed
     if ! command -v hyprctl &>/dev/null; then
         print_warning "Hyprland not installed, skipping plugins"
         return
     fi
 
-    print_warning "Adding hyprland-plugins repository..."
-
-    # Add the official plugins repository
-    # Nota: hyprpm a veces falla si los headers no coinciden, continuamos si falla
-    hyprpm add https://github.com/hyprwm/hyprland-plugins || print_warning "Repository check skipped or already added"
-
-    # Update plugin repository
-    hyprpm update || print_warning "hyprpm update warning (ignorable if first run)"
-
-    # Install and enable hyprscrolling
-    print_warning "Enabling hyprscrolling plugin..."
-    hyprpm enable hyprscrolling || print_warning "Could not enable hyprscrolling automatically"
+    # Intentar añadir repo, ignorar error si ya existe
+    hyprpm add https://github.com/hyprwm/hyprland-plugins || true
+    hyprpm update || true
+    hyprpm enable hyprscrolling || true
 
     print_success "Hyprland plugins configured"
-    print_warning "Note: Add 'exec-once = hyprpm reload -n' to your hyprland.conf"
 }
 
 # ============================================================================
@@ -262,15 +210,11 @@ step_install_audio() {
     )
 
     sudo pacman -S --needed --noconfirm "${AUDIO[@]}"
-    
-    # Fix: Enable --user services correctly (needs running dbus user session)
-    if systemctl --user list-units &>/dev/null; then
-        systemctl --user enable --now pipewire pipewire-pulse wireplumber
-    else
-        print_warning "Could not enable user services (not logged in via GUI/session). They will start on next boot."
+
+    # Intento seguro de activar servicios de usuario
+    systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null ||
         systemctl --user enable pipewire pipewire-pulse wireplumber
-    fi
-    
+
     print_success "PipeWire audio configured"
 }
 
@@ -281,25 +225,15 @@ step_install_dev_tools() {
     print_header "Installing Development Tools"
 
     DEV_TOOLS=(
-        # Build tools
         cmake meson ninja
-
-        # Languages
         go
-
-        # Docker
         docker docker-buildx docker-compose
-
-        # Editors & IDEs
         vscodium
-
-        # Other
         lazydocker
     )
 
     sudo pacman -S --needed --noconfirm "${DEV_TOOLS[@]}"
 
-    # Enable Docker
     sudo systemctl enable --now docker
     sudo usermod -aG docker $USER
 
@@ -328,7 +262,7 @@ step_install_python() {
     print_header "Installing Python Tools"
 
     sudo pacman -S --needed --noconfirm python python-pip
-    paru -S --needed --noconfirm uv 
+    paru -S --needed --noconfirm uv
 
     print_success "Python tools installed"
 }
@@ -380,55 +314,43 @@ step_install_additional() {
     print_header "Installing Additional Tools"
 
     ADDITIONAL=(
-        # File manager (GUI for backup)
         nemo
-
-        # System
         bluez bluez-utils
         fastfetch
         power-profiles-daemon
         dmidecode
         xclip
         cpio
-
-        # Scheduler
         scx-scheds
-
-        # Python tools
         python-adblock
-
-        # zRAM
         zram-generator
-
-        # Keyring
         gnome-keyring
     )
 
     sudo pacman -S --needed --noconfirm "${ADDITIONAL[@]}"
 
-    # Install AUR packages
-    print_warning "Installing additional AUR packages..."
+    print_warning "Installing ProtonVPN..."
     paru -S --needed --noconfirm protonvpn-cli
 
-    # Enable Bluetooth
     sudo systemctl enable --now bluetooth
 
     print_success "Additional tools installed"
 }
 
 # ============================================================================
-# STEP 16: Install Claude Code & Other AUR
+# STEP 16: Install Claude Code & Other AUR (FIXED: Binary Versions)
 # ============================================================================
 step_install_aur() {
-    print_header "Installing AUR Packages"
+    print_header "Installing AUR Packages (Fast Binaries)"
 
     AUR_PACKAGES=(
-        claude-code 
-        bun-bin     
-        localsend   
-        yaak        
+        claude-code
+        bun-bin
+        localsend-bin # USAMOS BINARIO PARA EVITAR COMPILAR
+        yaak-bin      # USAMOS BINARIO PARA EVITAR COMPILAR
     )
 
+    # Instalamos
     paru -S --needed --noconfirm "${AUR_PACKAGES[@]}"
 
     print_success "AUR packages installed"
@@ -440,26 +362,18 @@ step_install_aur() {
 step_setup_zsh() {
     print_header "Setting up ZSH"
 
-    # Change default shell to ZSH
     if [[ "$SHELL" != *"zsh"* ]]; then
         print_warning "Changing default shell to ZSH..."
         chsh -s $(which zsh)
-        print_success "Default shell changed to ZSH (logout required)"
     fi
 
-    # Install zinit (plugin manager)
     if [ ! -d "${HOME}/.local/share/zinit/zinit.git" ]; then
         print_warning "Installing zinit..."
         bash -c "$(curl --fail --show-error --silent --location https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
-        print_success "zinit installed"
-    else
-        print_success "zinit already installed"
     fi
 
-    # Backup existing .zshrc
     if [ -f ~/.zshrc ] && [ ! -f ~/.zshrc.backup ]; then
         cp ~/.zshrc ~/.zshrc.backup
-        print_success "Backed up existing .zshrc to .zshrc.backup"
     fi
 
     print_success "ZSH setup complete"
@@ -471,7 +385,6 @@ step_setup_zsh() {
 step_setup_git() {
     print_header "Setting up Git"
 
-    # Check if git is already configured
     if git config --global user.name &>/dev/null; then
         print_success "Git already configured"
         return
@@ -486,7 +399,7 @@ step_setup_git() {
     git config --global core.pager delta
     git config --global interactive.diffFilter "delta --color-only"
 
-    print_success "Git configured with Delta"
+    print_success "Git configured"
 }
 
 # ============================================================================
@@ -497,75 +410,31 @@ step_restore_dotfiles() {
 
     DOTFILES_REPO="https://github.com/Jesusado89/.dotfiles"
     DOTFILES_DIR="$HOME/.dotfiles"
+    CONFIGS_TO_APPLY=(zsh nvim waybar swaync hypr fuzzel starship qutebrowser kitty)
 
-    # Configurations to apply with stow
-    CONFIGS_TO_APPLY=(
-        zsh
-        nvim
-        waybar
-        swaync
-        hypr
-        fuzzel
-        starship
-        qutebrowser
-        kitty
-    )
-
-    # Clone dotfiles if not exists
     if [ ! -d "$DOTFILES_DIR" ]; then
-        print_warning "Cloning dotfiles from $DOTFILES_REPO..."
-        git clone "$DOTFILES_REPO" "$DOTFILES_DIR" || {
-            print_error "Failed to clone dotfiles repository"
-            return 1
-        }
-        print_success "Dotfiles cloned successfully"
+        print_warning "Cloning dotfiles..."
+        git clone "$DOTFILES_REPO" "$DOTFILES_DIR" || return 1
     else
-        print_success "Dotfiles directory already exists"
-        # Pull latest changes
         print_warning "Pulling latest changes..."
-        cd "$DOTFILES_DIR"
-        git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || print_warning "Could not pull latest changes"
+        cd "$DOTFILES_DIR" && git pull origin main 2>/dev/null || true
     fi
 
-    # Apply configurations with stow
     if [ -d "$DOTFILES_DIR" ]; then
         print_warning "Applying dotfiles with stow..."
         cd "$DOTFILES_DIR"
-
-        # List available configurations
-        echo -e "${YELLOW}Available configurations in dotfiles:${NC}"
-        ls -d */ 2>/dev/null | sed 's#/##g'
-        echo ""
-
-        echo -e "${YELLOW}Applying selected configurations:${NC}"
         for config in "${CONFIGS_TO_APPLY[@]}"; do
             if [ -d "$config" ]; then
-                echo -e "${BLUE}Applying $config...${NC}"
-                # Intentar borrar config existente si stow falla (opcional pero util en scripts agresivos)
+                # Backup if exists and is not a symlink
                 if [ -d "$HOME/.config/$config" ] && [ ! -L "$HOME/.config/$config" ]; then
-                     mv "$HOME/.config/$config" "$HOME/.config/${config}.bak"
+                    mv "$HOME/.config/$config" "$HOME/.config/${config}.bak"
                 fi
-                
-                if stow -v "$config" 2>/dev/null; then
-                    print_success "Applied $config"
-                else
-                    # Try restow to fix conflicts
-                    if stow -R "$config" 2>/dev/null; then
-                        print_success "Re-applied $config (resolved conflicts)"
-                    else
-                        print_warning "Could not apply $config (conflicts exist)"
-                    fi
-                fi
-            else
-                print_warning "$config directory not found in dotfiles"
+
+                stow -v "$config" 2>/dev/null || stow -R "$config" 2>/dev/null
             fi
         done
-
         cd "$HOME"
         print_success "Dotfiles configuration complete"
-    else
-        print_error "Dotfiles directory not accessible"
-        return 1
     fi
 }
 
@@ -575,16 +444,10 @@ step_restore_dotfiles() {
 step_setup_services() {
     print_header "Enabling Services"
 
-    # Enable NetworkManager
     sudo systemctl enable --now NetworkManager
-
-    # Enable ly (display manager)
     sudo systemctl enable --now ly
-
-    # Enable power-profiles-daemon
     sudo systemctl enable --now power-profiles-daemon
 
-    # Enable zram (if not already enabled by optimization step)
     if [ -f /etc/systemd/zram-generator.conf ]; then
         sudo systemctl daemon-reload
         sudo systemctl start systemd-zram-setup@zram0.service
@@ -599,20 +462,16 @@ step_setup_services() {
 step_performance_optimization() {
     print_header "Applying Performance Optimizations"
 
-    # zRAM configuration
     if [ ! -f /etc/systemd/zram-generator.conf ]; then
         sudo tee /etc/systemd/zram-generator.conf >/dev/null <<EOF
 [zram0]
 zram-size = ram / 2
 compression-algorithm = zstd
 EOF
-        print_success "zRAM configured"
     fi
 
-    # Pacman parallel downloads
     if ! grep -q "^ParallelDownloads" /etc/pacman.conf; then
         sudo sed -i 's/#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
-        print_success "Pacman parallel downloads enabled"
     fi
 
     print_success "Performance optimizations applied"
@@ -624,68 +483,30 @@ EOF
 step_setup_claude_code() {
     print_header "Setting up Claude Code Configuration"
 
-    # Verificar que dotfiles existen
     if [[ ! -d "$HOME/.dotfiles/claude" ]]; then
-        print_warning "Claude config not found in dotfiles, skipping..."
+        print_warning "Claude config not found, skipping..."
         return
     fi
 
-    # Crear symlinks para Claude config
+    # Config Link
+    mkdir -p "$HOME/.config"
     if [[ ! -L "$HOME/.config/claude" ]]; then
-        print_warning "Creating symlink for Claude config..."
-        mkdir -p "$HOME/.config"
         ln -sf "$HOME/.dotfiles/claude" "$HOME/.config/claude"
-        print_success "Claude config symlinked"
-    else
-        print_success "Claude config already configured"
     fi
 
-    # Crear symlinks para SearXNG
-    if [[ -d "$HOME/.dotfiles/searxng" ]] && [[ ! -L "$HOME/searxng" ]]; then
-        print_warning "Creating symlink for SearXNG..."
-        if [[ -d "$HOME/searxng" ]]; then
-            mv "$HOME/searxng" "$HOME/searxng.bak"
-        fi
-        ln -sf "$HOME/.dotfiles/searxng" "$HOME/searxng"
-        print_success "SearXNG symlinked"
-    fi
-
-    # Crear symlinks para scripts
+    # Scripts Links
     mkdir -p "$HOME/.local/bin"
     for script in searxng-search claude-backup claude-check; do
-        if [[ -f "$HOME/.dotfiles/scripts/$script" ]] && [[ ! -L "$HOME/.local/bin/$script" ]]; then
+        if [[ -f "$HOME/.dotfiles/scripts/$script" ]]; then
             ln -sf "$HOME/.dotfiles/scripts/$script" "$HOME/.local/bin/$script"
             chmod +x "$HOME/.dotfiles/scripts/$script"
-            print_success "Script $script symlinked"
         fi
     done
 
-    # Configurar systemd para SearXNG auto-inicio
-    if [[ -d "$HOME/searxng" ]]; then
-        print_warning "Configuring SearXNG auto-start..."
-        mkdir -p "$HOME/.config/systemd/user"
-
-        cat > "$HOME/.config/systemd/user/searxng.service" << 'EOFSERVICE'
-[Unit]
-Description=SearXNG Metasearch Engine
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-WorkingDirectory=%h/searxng
-ExecStart=/usr/bin/docker-compose up -d
-ExecStop=/usr/bin/docker-compose down
-TimeoutStartSec=0
-
-[Install]
-WantedBy=default.target
-EOFSERVICE
-
-        systemctl --user daemon-reload
-        if systemctl --user list-units &>/dev/null; then
-             systemctl --user enable searxng.service
-             print_success "SearXNG auto-start configured"
-        fi
+    # SearXNG Link
+    if [[ -d "$HOME/.dotfiles/searxng" ]] && [[ ! -L "$HOME/searxng" ]]; then
+        if [[ -d "$HOME/searxng" ]]; then mv "$HOME/searxng" "$HOME/searxng.bak"; fi
+        ln -sf "$HOME/.dotfiles/searxng" "$HOME/searxng"
     fi
 
     print_success "Claude Code setup complete"
@@ -696,50 +517,20 @@ EOFSERVICE
 # ============================================================================
 step_cleanup() {
     print_header "Cleaning up"
-
-    # Check if paru is actually installed before trying to use it
     if command -v paru &>/dev/null; then
         paru -Sc --noconfirm
     fi
     sudo pacman -Sc --noconfirm
-
     print_success "Cleanup complete"
 }
 
 # ============================================================================
-# STEP 24: Summary & Post-Install Instructions
+# STEP 24: Summary
 # ============================================================================
 step_summary() {
     print_header "Installation Complete!"
-
     echo -e "${GREEN}✓ System fully configured${NC}\n"
-
-    echo -e "${YELLOW}Post-Installation Steps:${NC}"
-    echo "1. Logout and login again to apply shell changes"
-    echo "2. Run 'source ~/.zshrc' to load ZSH configuration"
-    echo "3. Test Hyprland: logout and select Hyprland session"
-    echo "4. Configure your dotfiles if you have them"
-    echo ""
-
-    echo -e "${YELLOW}Useful Commands:${NC}"
-    echo "  paru -Syu          # Update system & AUR"
-    echo "  btop               # System monitor"
-    echo "  lazygit            # Git TUI"
-    echo "  lazydocker         # Docker TUI"
-    echo "  fastfetch          # System info"
-    echo "  claude-check       # Verify Claude Code setup"
-    echo "  s \"query\"          # Web search with SearXNG"
-    echo "  csync              # Sync Claude config to git"
-    echo ""
-
-    echo -e "${YELLOW}Next Steps:${NC}"
-    echo "1. Configure Hyprland: ~/.config/hypr/hyprland.conf"
-    echo "2. Configure Waybar: ~/.config/waybar/"
-    echo "3. Setup your development environment"
-    echo "4. Restore your dotfiles if you have them"
-    echo ""
-
-    echo -e "${GREEN}Enjoy your Arch Linux setup! 🚀${NC}\n"
+    echo -e "${YELLOW}Please REBOOT your system now.${NC}"
 }
 
 # ============================================================================
@@ -749,8 +540,7 @@ main() {
     check_root
 
     print_header "Arch Linux Post-Installation Script"
-    echo "This script will install and configure your system"
-    echo "Press Ctrl+C to cancel, or Enter to continue..."
+    echo "Press Enter to continue..."
     read
 
     # Execute steps
@@ -782,3 +572,4 @@ main() {
 
 # Run main function
 main "$@"
+
