@@ -7,7 +7,9 @@
 # Date: $(date +%Y-%m-%d)
 # ============================================================================
 
-set -e # Exit on error
+# NO usamos set -e para que el script continúe incluso si un paso falla
+set -u # Exit on undefined variable
+set -o pipefail # Exit on pipe failure
 
 # Colors for output
 RED='\033[0;31m'
@@ -15,6 +17,10 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Arrays para tracking de pasos
+declare -a COMPLETED_STEPS=()
+declare -a FAILED_STEPS=()
 
 # Functions
 print_header() {
@@ -39,6 +45,22 @@ check_root() {
     if [[ $EUID -eq 0 ]]; then
         print_error "This script should NOT be run as root (except for specific parts)"
         exit 1
+    fi
+}
+
+# Wrapper para ejecutar pasos con manejo de errores
+run_step() {
+    local step_name="$1"
+    local step_function="$2"
+
+    echo "" # Línea en blanco para separación
+    if $step_function; then
+        COMPLETED_STEPS+=("$step_name")
+        return 0
+    else
+        FAILED_STEPS+=("$step_name")
+        print_error "Step '$step_name' failed, but continuing..."
+        return 1
     fi
 }
 
@@ -402,7 +424,10 @@ step_restore_dotfiles() {
 
     if [ ! -d "$DOTFILES_DIR" ]; then
         print_warning "Cloning dotfiles..."
-        git clone "$DOTFILES_REPO" "$DOTFILES_DIR" || return 1
+        if ! git clone "$DOTFILES_REPO" "$DOTFILES_DIR"; then
+            print_error "Failed to clone dotfiles repository"
+            return 1
+        fi
     else
         print_warning "Pulling latest changes..."
         cd "$DOTFILES_DIR" && git pull origin main 2>/dev/null || true
@@ -506,10 +531,11 @@ step_setup_claude_code() {
 step_cleanup() {
     print_header "Cleaning up"
     if command -v paru &>/dev/null; then
-        paru -Sc --noconfirm
+        paru -Sc --noconfirm || print_warning "paru cleanup had issues, continuing..."
     fi
-    sudo pacman -Sc --noconfirm
+    sudo pacman -Sc --noconfirm || print_warning "pacman cleanup had issues, continuing..."
     print_success "Cleanup complete"
+    return 0 # Always succeed, cleanup is not critical
 }
 
 # ============================================================================
@@ -517,7 +543,28 @@ step_cleanup() {
 # ============================================================================
 step_summary() {
     print_header "Installation Complete!"
-    echo -e "${GREEN}✓ System fully configured${NC}\n"
+
+    # Mostrar pasos completados
+    if [ ${#COMPLETED_STEPS[@]} -gt 0 ]; then
+        echo -e "${GREEN}✓ Pasos completados exitosamente (${#COMPLETED_STEPS[@]}):${NC}"
+        for step in "${COMPLETED_STEPS[@]}"; do
+            echo -e "  ${GREEN}✓${NC} $step"
+        done
+        echo ""
+    fi
+
+    # Mostrar pasos fallidos si los hay
+    if [ ${#FAILED_STEPS[@]} -gt 0 ]; then
+        echo -e "${RED}✗ Pasos que fallaron (${#FAILED_STEPS[@]}):${NC}"
+        for step in "${FAILED_STEPS[@]}"; do
+            echo -e "  ${RED}✗${NC} $step"
+        done
+        echo ""
+        echo -e "${YELLOW}⚠ Algunos pasos fallaron. Revisa los errores arriba.${NC}\n"
+    else
+        echo -e "${GREEN}✓ Todos los pasos se completaron exitosamente${NC}\n"
+    fi
+
     echo -e "${YELLOW}Please REBOOT your system now.${NC}\n"
     echo -e "${BLUE}Después del reinicio (OPCIONAL):${NC}"
     echo -e "  ${YELLOW}•${NC} Para instalar plugins de Hyprland:"
@@ -536,30 +583,32 @@ main() {
     echo "Press Enter to continue..."
     read
 
-    # Execute steps
-    step_system_update
-    step_setup_chaotic_aur
-    step_install_paru
-    step_install_essentials
-    step_install_modern_cli
-    step_install_hyprland
+    # Execute steps with error handling
+    run_step "System Update" step_system_update
+    run_step "Setup Chaotic-AUR" step_setup_chaotic_aur
+    run_step "Install paru (AUR Helper)" step_install_paru
+    run_step "Install Essential Packages" step_install_essentials
+    run_step "Install Modern CLI Tools" step_install_modern_cli
+    run_step "Install Hyprland & Wayland" step_install_hyprland
     # step_configure_hyprpm - REMOVED: Ver hyprland-plugins-setup.sh
-    step_install_audio
-    step_install_dev_tools
-    step_install_fnm
-    step_install_python
-    step_install_fonts
-    step_install_browsers
-    step_install_themes
-    step_install_additional
-    step_install_aur
-    step_setup_zsh
-    step_setup_git
-    step_restore_dotfiles
-    step_setup_services
-    step_performance_optimization
-    step_setup_claude_code
-    step_cleanup
+    run_step "Install Audio (PipeWire)" step_install_audio
+    run_step "Install Development Tools" step_install_dev_tools
+    run_step "Install fnm (Node Manager)" step_install_fnm
+    run_step "Install Python Tools" step_install_python
+    run_step "Install Fonts" step_install_fonts
+    run_step "Install Browsers" step_install_browsers
+    run_step "Install Themes" step_install_themes
+    run_step "Install Additional Tools" step_install_additional
+    run_step "Install AUR Packages" step_install_aur
+    run_step "Setup ZSH" step_setup_zsh
+    run_step "Setup Git" step_setup_git
+    run_step "Restore Dotfiles" step_restore_dotfiles
+    run_step "Setup Services" step_setup_services
+    run_step "Performance Optimizations" step_performance_optimization
+    run_step "Setup Claude Code" step_setup_claude_code
+    run_step "Cleanup" step_cleanup
+
+    # Always show summary at the end
     step_summary
 }
 
