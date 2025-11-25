@@ -180,23 +180,11 @@ step_install_hyprland() {
 }
 
 # ============================================================================
-# STEP 7: Configure Hyprland Plugins (hyprpm)
+# STEP 7: Hyprland Plugins - MOVED TO SEPARATE SCRIPT
 # ============================================================================
-step_configure_hyprpm() {
-    print_header "Configuring Hyprland Plugins"
-
-    if ! command -v hyprctl &>/dev/null; then
-        print_warning "Hyprland not installed, skipping plugins"
-        return
-    fi
-
-    # Intentar añadir repo, ignorar error si ya existe
-    hyprpm add https://github.com/hyprwm/hyprland-plugins || true
-    hyprpm update || true
-    hyprpm enable hyprscrolling || true
-
-    print_success "Hyprland plugins configured"
-}
+# Los plugins de Hyprland se configuran después del primer reinicio
+# Ejecuta: ./hyprland-plugins-setup.sh
+# Razón: hyprpm requiere que Hyprland esté corriendo y compila desde fuente
 
 # ============================================================================
 # STEP 8: Install Audio (PipeWire)
@@ -530,7 +518,12 @@ step_cleanup() {
 step_summary() {
     print_header "Installation Complete!"
     echo -e "${GREEN}✓ System fully configured${NC}\n"
-    echo -e "${YELLOW}Please REBOOT your system now.${NC}"
+    echo -e "${YELLOW}Please REBOOT your system now.${NC}\n"
+    echo -e "${BLUE}Después del reinicio (OPCIONAL):${NC}"
+    echo -e "  ${YELLOW}•${NC} Para instalar plugins de Hyprland:"
+    echo -e "    ${BLUE}cd ~/post_install && ./hyprland-plugins-setup.sh${NC}"
+    echo -e "    ${YELLOW}⚠${NC} Requiere sesión activa de Hyprland"
+    echo ""
 }
 
 # ============================================================================
@@ -550,7 +543,7 @@ main() {
     step_install_essentials
     step_install_modern_cli
     step_install_hyprland
-    step_configure_hyprpm
+    # step_configure_hyprpm - REMOVED: Ver hyprland-plugins-setup.sh
     step_install_audio
     step_install_dev_tools
     step_install_fnm
