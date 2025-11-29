@@ -340,7 +340,7 @@ step_install_additional() {
     sudo pacman -S --needed --noconfirm "${ADDITIONAL[@]}"
 
     print_warning "Installing ProtonVPN..."
-    paru -S --needed --noconfirm protonvpn-cli
+    paru -S --needed --noconfirm protonvpn-cli proton-pass-cli-bin
 
     sudo systemctl enable --now bluetooth
 
