@@ -417,7 +417,7 @@ step_setup_git() {
 step_restore_dotfiles() {
     print_header "Restoring Dotfiles"
 
-    DOTFILES_REPO="https://github.com/Jesusado89/.dotfiles"
+    DOTFILES_REPO="https://github.com/yeshua89/.dotfiles"
     DOTFILES_DIR="$HOME/.dotfiles"
     CONFIGS_TO_APPLY=(zsh nvim waybar swaync hypr fuzzel starship qutebrowser kitty)
 
