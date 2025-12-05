@@ -185,7 +185,6 @@ step_install_hyprland() {
         hyprland hyprpaper hyprlock hypridle hyprsunset
         hyprshot hyprpicker hyprpolkitagent
         waybar swaync fuzzel wlogout
-        ly
         cliphist wl-clipboard
         blueman
         mpv imv
@@ -458,7 +457,6 @@ step_setup_services() {
     print_header "Enabling Services"
 
     sudo systemctl enable --now NetworkManager
-    sudo systemctl enable --now ly
     sudo systemctl enable --now power-profiles-daemon
 
     if [ -f /etc/systemd/zram-generator.conf ]; then
