@@ -303,7 +303,7 @@ step_install_fonts() {
 step_install_browsers() {
     print_header "Installing Browsers"
 
-    sudo pacman -S --needed --noconfirm firefox-developer-edition qutebrowser
+    sudo pacman -S --needed --noconfirm firefox-developer-edition qutebrowser librewolf 
 
     print_success "Browsers installed"
 }
